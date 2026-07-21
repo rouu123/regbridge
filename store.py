@@ -1,6 +1,8 @@
 import uuid
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance, Filter, FieldCondition, MatchValue
+from qdrant_client.models import (
+    PointStruct, VectorParams, Distance, Filter, FieldCondition, MatchValue, PayloadSchemaType
+)
 
 from config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION
 from normalize import Paper
@@ -17,6 +19,42 @@ def ensure_qdrant_collection() -> None:
             collection_name=QDRANT_COLLECTION,
             vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
         )
+    for field_name in ("doi", "source_id", "source"):
+        try:
+            qdrant.create_payload_index(
+                collection_name=QDRANT_COLLECTION,
+                field_name=field_name,
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+        except Exception:
+            pass
+
+
+def load_existing_keys_from_qdrant() -> set[str]:
+    """Fetch existing paper keys (DOIs or source:source_id) from Qdrant."""
+    seen = set()
+    offset = None
+    while True:
+        records, offset = qdrant.scroll(
+            collection_name=QDRANT_COLLECTION,
+            limit=1000,
+            offset=offset,
+            with_payload=["doi", "source", "source_id"],
+            with_vectors=False,
+        )
+        for r in records:
+            payload = r.payload or {}
+            doi = payload.get("doi")
+            source = payload.get("source")
+            source_id = payload.get("source_id")
+            if doi:
+                seen.add(doi.lower().strip())
+            elif source and source_id:
+                seen.add(f"{source}:{source_id}")
+        if offset is None:
+            break
+    return seen
+
 
 
 def find_existing_id(paper: Paper) -> str | None:

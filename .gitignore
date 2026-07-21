@@ -1,4 +1,4 @@
 .env.example
 .env
 venvpapers/
-pycache/
+__pycache__/

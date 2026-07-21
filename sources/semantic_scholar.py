@@ -1,3 +1,4 @@
+import time
 import requests
 from normalize import Paper
 from config import SEMANTIC_SCHOLAR_API_KEY
@@ -11,14 +12,21 @@ def fetch(query: str, limit: int = 25) -> list[Paper]:
     if SEMANTIC_SCHOLAR_API_KEY:
         headers["x-api-key"] = SEMANTIC_SCHOLAR_API_KEY
 
-    resp = requests.get(
-        BASE_URL,
-        params={"query": query, "limit": limit, "fields": FIELDS},
-        headers=headers,
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json().get("data", [])
+    resp = None
+    for attempt in range(3):
+        resp = requests.get(
+            BASE_URL,
+            params={"query": query, "limit": limit, "fields": FIELDS},
+            headers=headers,
+            timeout=30,
+        )
+        if resp.status_code == 429 and attempt < 2:
+            time.sleep(3 * (attempt + 1))
+            continue
+        resp.raise_for_status()
+        break
+
+    data = (resp.json() if resp else {}).get("data", [])
 
     papers = []
     for item in data:

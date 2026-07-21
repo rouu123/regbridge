@@ -9,14 +9,22 @@ def fetch(query: str, limit: int = 25) -> list[Paper]:
     if not CORE_API_KEY:
         raise RuntimeError("CORE_API_KEY is not set (get a free key at core.ac.uk/services/api)")
 
-    resp = requests.post(
-        BASE_URL,
-        headers={"Authorization": f"Bearer {CORE_API_KEY}"},
-        json={"q": query, "limit": limit},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    results = resp.json().get("results", [])
+    resp = None
+    for attempt in range(2):
+        try:
+            resp = requests.post(
+                BASE_URL,
+                headers={"Authorization": f"Bearer {CORE_API_KEY}"},
+                json={"q": query, "limit": limit},
+                timeout=45,
+            )
+            resp.raise_for_status()
+            break
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            if attempt == 0:
+                continue
+            raise
+    results = (resp.json() if resp else {}).get("results", [])
 
     papers = []
     for item in results:

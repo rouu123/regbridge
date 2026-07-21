@@ -1,0 +1,5 @@
+sentence-transformers
+requests
+qdrant-client
+python-dotenv
+torch
